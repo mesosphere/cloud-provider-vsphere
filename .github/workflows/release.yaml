@@ -1,0 +1,41 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to release.'
+        type: string
+        required: true
+
+env:
+  GITHUB_TOKEN: "${{ secrets.MESOSPHERECI_USER_TOKEN }}"
+  IMAGE: "ghcr.io/mesosphere/cloud-provider-vsphere"
+
+jobs:
+  build_and_push:
+    runs-on:
+      - self-hosted
+      - small
+    steps:
+      - name: Checks out the repository at the release tag
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+      - name: Go is required to build tool dependencies, as well as konvoy itself
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build image
+        run: |
+          make docker-image IMAGE="$IMAGE" BRANCH_NAME="${{ inputs.tag }}"
+      - name: Push image
+        run: |
+          docker push "$IMAGE:${{ inputs.tag }}"
